@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_state_management/controllers/task_bloc.dart';
-import 'package:flutter_state_management/controllers/task_event.dart';
+import 'package:flutter_state_management/bloc_observer.dart';
+import 'package:flutter_state_management/controllers/product_cubit.dart';
 
 void main() {
   runApp(const MyApp());
+  Bloc.observer = AppBlocObserver();
 }
 
 class MyApp extends StatelessWidget {
@@ -14,12 +15,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
+      title: 'Store App',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MyHomePage(title: 'Store App'),
     );
   }
 }
@@ -32,58 +33,61 @@ class MyHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print('===============>Build');
-    return Scaffold(
+    return BlocProvider(
+      create: (context) => ProductCubit()..getProducts(),
+      child: Scaffold(
         appBar: AppBar(
+          centerTitle: true,
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
           title: Text(title),
         ),
-        body: BlocProvider(
-          create: (context) => TaskBloc(),
-          child: BlocBuilder<TaskBloc, TaskState>(
-            builder: (context, state) {
-              final cubit  = context.read<TaskBloc>();
-              return Column(
-                children: [
-                  TextField(
-                    controller: controller,
-                    decoration: InputDecoration(hintText: "Enter a task"),
+        body: BlocBuilder<ProductCubit, ProductState>(
+          builder: (context, state) {
+            switch (state) {
+              case ProductLoading():
+                return Center(child: CircularProgressIndicator());
+              case ProductLoaded():
+                return GridView.builder(
+                  padding: EdgeInsets.all(10),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: .7,
+                    mainAxisSpacing: 10,
                   ),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (controller.text.isEmpty) return;
-                      cubit.add(AddTaskEvent(controller.text));
-                      controller.clear();
-                    },
-                    child: Text("Add Task"),
-                  ),
-                  Expanded(
-                      child: ListView.builder(
-                    itemCount: state.taskList.length,
-                    itemBuilder: (context, index) {
-                      return ListTile(
-                        title: Text(state.taskList[index].title),
-                        leading: Checkbox(
-                          value: state.taskList[index].isCompleted,
-                          onChanged: (value) {
-                            cubit.add(ToggleTaskEvent(state.taskList[index].id));
-                          },
-                        ),
-                        trailing: IconButton(
-                            onPressed: () {
-                              cubit.add(DeleteTaskEvent(state.taskList[index].id));
-                            },
-                            icon: Icon(
-                              Icons.delete,
-                              color: Colors.red,
-                            )),
-                      );
-                    },
-                  ))
-                ],
-              );
-            },
-          ),
-        ));
+                  itemCount: state.productList.length,
+                  itemBuilder: (context, index) {
+                    final product = state.productList[index];
+                    return Card(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Image.network(
+                              product.image,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(product.title),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(product.price.toString()),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              case ProductError():
+               return Center(child: Text(state.errorMessage.toString()));
+            }
+          },
+        ),
+      ),
+    );
   }
 }
