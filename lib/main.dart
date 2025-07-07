@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_state_management/bloc_observer.dart';
-import 'package:flutter_state_management/controllers/product_cubit.dart';
+import 'package:flutter_state_management/controllers/task_bloc.dart';
+import 'package:flutter_state_management/controllers/task_event.dart';
+import 'package:hydrated_bloc/hydrated_bloc.dart';
+import 'package:path_provider/path_provider.dart';
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  HydratedBloc.storage = await HydratedStorage.build(
+      storageDirectory:HydratedStorageDirectory((await getTemporaryDirectory()).path),
+  );
   runApp(const MyApp());
-  Bloc.observer = AppBlocObserver();
 }
 
 class MyApp extends StatelessWidget {
@@ -15,12 +20,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Store App',
+      title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: MyHomePage(title: 'Store App'),
+      home: MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
@@ -33,61 +38,58 @@ class MyHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => ProductCubit()..getProducts(),
-      child: Scaffold(
+    print('===============>Build');
+    return Scaffold(
         appBar: AppBar(
-          centerTitle: true,
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
           title: Text(title),
         ),
-        body: BlocBuilder<ProductCubit, ProductState>(
-          builder: (context, state) {
-            switch (state) {
-              case ProductLoading():
-                return Center(child: CircularProgressIndicator());
-              case ProductLoaded():
-                return GridView.builder(
-                  padding: EdgeInsets.all(10),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: .7,
-                    mainAxisSpacing: 10,
+        body: BlocProvider(
+          create: (context) => TaskBloc(),
+          child: BlocBuilder<TaskBloc, TaskState>(
+            builder: (context, state) {
+              final cubit  = context.read<TaskBloc>();
+              return Column(
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: InputDecoration(hintText: "Enter a task"),
                   ),
-                  itemCount: state.productList.length,
-                  itemBuilder: (context, index) {
-                    final product = state.productList[index];
-                    return Card(
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Image.network(
-                              product.image,
-                              fit: BoxFit.cover,
+                  ElevatedButton(
+                    onPressed: () {
+                      if (controller.text.isEmpty) return;
+                      cubit.add(AddTaskEvent(controller.text));
+                      controller.clear();
+                    },
+                    child: Text("Add Task"),
+                  ),
+                  Expanded(
+                      child: ListView.builder(
+                        itemCount: state.taskList.length,
+                        itemBuilder: (context, index) {
+                          return ListTile(
+                            title: Text(state.taskList[index].title),
+                            leading: Checkbox(
+                              value: state.taskList[index].isCompleted,
+                              onChanged: (value) {
+                                cubit.add(ToggleTaskEvent(state.taskList[index].id));
+                              },
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(product.title),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(product.price.toString()),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              case ProductError():
-               return Center(child: Text(state.errorMessage.toString()));
-            }
-          },
-        ),
-      ),
-    );
+                            trailing: IconButton(
+                                onPressed: () {
+                                  cubit.add(DeleteTaskEvent(state.taskList[index].id));
+                                },
+                                icon: Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                )),
+                          );
+                        },
+                      ))
+                ],
+              );
+            },
+          ),
+        ));
   }
 }
